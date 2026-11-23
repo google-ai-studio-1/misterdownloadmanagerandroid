@@ -1,12 +1,18 @@
 package com.misterdownloadmanager.port.ui.screens
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -25,8 +31,14 @@ fun SettingsScreen(
     onSettingsChange: (Settings) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.padding(16.dp)) {
-        Text(text = stringResource(R.string.settings_general), style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .imePadding()
+            .padding(16.dp)
+    ) {
+        Text(text = stringResource(R.string.settings_general), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
         SettingsSwitch(
             label = stringResource(R.string.settings_auto_start),
@@ -49,7 +61,8 @@ fun SettingsScreen(
             onChange = { onSettingsChange(settings.copy(followSystemTheme = it)) }
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Text(text = stringResource(R.string.settings_download), style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+        Text(text = stringResource(R.string.settings_download), style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
             value = settings.maxSimultaneousDownloads.toString(),
             onValueChange = { text ->
@@ -57,6 +70,7 @@ fun SettingsScreen(
             },
             label = { Text(stringResource(R.string.settings_max_downloads)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -67,6 +81,7 @@ fun SettingsScreen(
             },
             label = { Text(stringResource(R.string.settings_max_connections)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -74,15 +89,18 @@ fun SettingsScreen(
             value = settings.downloadFolder,
             onValueChange = { onSettingsChange(settings.copy(downloadFolder = it)) },
             label = { Text(stringResource(R.string.settings_download_folder)) },
+            singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Text(text = stringResource(R.string.settings_speed), style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+        Text(text = stringResource(R.string.settings_speed), style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
         SettingsSwitch(
             label = stringResource(R.string.label_speed_limit),
             checked = settings.speedLimitOn,
             onChange = { onSettingsChange(settings.copy(speedLimitOn = it)) }
         )
+        Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
             value = settings.speedLimitKbPerSecond.toString(),
             onValueChange = { text ->
@@ -90,10 +108,12 @@ fun SettingsScreen(
             },
             label = { Text(stringResource(R.string.label_speed_limit) + " (KB/s)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Text(text = stringResource(R.string.settings_connection), style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+        Text(text = stringResource(R.string.settings_connection), style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
         SettingsSwitch(
             label = stringResource(R.string.settings_use_proxy),
             checked = settings.proxy.enabled,
@@ -104,6 +124,7 @@ fun SettingsScreen(
             checked = settings.verifyChecksumAfterDownload,
             onChange = { onSettingsChange(settings.copy(verifyChecksumAfterDownload = it)) }
         )
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -111,6 +132,7 @@ fun SettingsScreen(
 fun SettingsSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text = label, modifier = Modifier.weight(1f))
