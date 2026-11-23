@@ -82,7 +82,7 @@ class DownloadService : Service() {
             } else if (repository?.settings?.value?.resumeOnStart == true) {
                 processQueue()
             } else {
-                stopForeground(STOP_FOREGROUND_DETACH)
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
         }
@@ -120,7 +120,7 @@ class DownloadService : Service() {
                 .filter { it.status == DownloadStatus.QUEUED }
                 .minByOrNull { it.id }
             if (next == null) {
-                stopForeground(STOP_FOREGROUND_DETACH)
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return
             }
@@ -182,6 +182,8 @@ class DownloadService : Service() {
         job?.cancel()
         progressChannel.close()
         scope.cancel()
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.cancel(NOTIFICATION_ID)
         super.onDestroy()
     }
 

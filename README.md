@@ -472,6 +472,15 @@ Behaviour changes considered per version:
   the file, and the app used to fail at once on it. The engine now
   discards the partial file and restarts the download from the
   beginning, at most twice, and only then fails with a clear message.
+  Testing the fixed build on a real device then found a stuck
+  notification: when the queue emptied, the service stopped with
+  `STOP_FOREGROUND_DETACH`, which detaches the service from the
+  notification but leaves the notification itself posted, and because
+  it is ongoing it cannot be swiped away, so the "downloading"
+  notification stayed forever after a failed download. The service
+  now stops with `STOP_FOREGROUND_REMOVE`, which removes the
+  notification as well, and cancels it again in `onDestroy` so no
+  stop path can leave it behind.
 
 ## What still needs testing on a real device or emulator
 
