@@ -1,7 +1,6 @@
 package com.misterdownloadmanager.port.core.cnl
 
 import java.net.URLDecoder
-import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -62,7 +61,7 @@ object ClickNLoad {
     fun decrypt(crypted: String, jk: String): String {
         val key = keyOf(jk) ?: throw IllegalArgumentException("Click'n'Load key function did not return a 32-digit hex key.")
         val cleaned = crypted.filter { !it.isWhitespace() }
-        val cipherBytes = Base64.getDecoder().decode(cleaned)
+        val cipherBytes = decodeBase64(cleaned)
         if (cipherBytes.size % 16 != 0) throw IllegalArgumentException("Click'n'Load data length is not a multiple of 16.")
         val cipher = Cipher.getInstance("AES/CBC/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(key))
@@ -104,5 +103,30 @@ object ClickNLoad {
         if (host.startsWith("::ffff:")) return isInternalLink("http://" + host.removePrefix("::ffff:"))
         if (host == "::1" || host == "::" || host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd")) return true
         return false
+    }
+
+    private fun decodeBase64(input: String): ByteArray {
+        val clean = input.trimEnd('=')
+        val out = ByteArray((clean.length * 3) / 4)
+        var outIdx = 0
+        var buffer = 0
+        var bits = 0
+        for (ch in clean) {
+            val value = when (ch) {
+                in 'A'..'Z' -> ch - 'A'
+                in 'a'..'z' -> ch - 'a' + 26
+                in '0'..'9' -> ch - '0' + 52
+                '+', '-' -> 62
+                '/', '_' -> 63
+                else -> throw IllegalArgumentException("Invalid Base64 character: $ch")
+            }
+            buffer = (buffer shl 6) or value
+            bits += 6
+            if (bits >= 8) {
+                bits -= 8
+                out[outIdx++] = ((buffer shr bits) and 0xFF).toByte()
+            }
+        }
+        return if (outIdx == out.size) out else out.copyOf(outIdx)
     }
 }

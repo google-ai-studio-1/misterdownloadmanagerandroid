@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.MisterDownloadManager" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/mdm_blue</item>
-        <item name="colorPrimaryDark">@color/mdm_blue_dark</item>
-        <item name="colorAccent">@color/mdm_blue</item>
+    <style name="Theme.MisterDownloadManager" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">@color/mdm_blue</item>
+        <item name="android:colorPrimaryDark">@color/mdm_blue_dark</item>
+        <item name="android:colorAccent">@color/mdm_blue</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>
