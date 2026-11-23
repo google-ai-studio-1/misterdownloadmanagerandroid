@@ -69,7 +69,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         val category = categoryId ?: Category.of(name).id
         val folder = getApplication<Application>().getExternalFilesDir(null)?.absolutePath
             ?: getApplication<Application>().filesDir.absolutePath
-        val downloadFolder = File(folder, "Download").absolutePath
+        val downloadFolder = settings.resolveDownloadFolder(File(folder, "Download").absolutePath)
         val item = DownloadItem(
             id = repository.nextId(),
             url = trimmed,

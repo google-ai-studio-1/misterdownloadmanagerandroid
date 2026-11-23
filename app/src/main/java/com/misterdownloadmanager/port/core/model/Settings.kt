@@ -115,6 +115,12 @@ data class Settings(
         return maxConnectionsPerDownload.coerceIn(1, connectionLimit())
     }
 
+    fun resolveDownloadFolder(defaultFolder: String): String {
+        val configured = downloadFolder.trim().removePrefix("file://").trim()
+        if (configured.isBlank()) return defaultFolder
+        return if (configured.startsWith("/")) configured else defaultFolder
+    }
+
     fun speedLimitBytesPerSecond(): Long? {
         return if (speedLimitOn) speedLimitKbPerSecond.coerceAtLeast(1L) * 1024L else null
     }

@@ -106,6 +106,17 @@ class PortLogicTest {
     }
 
     @Test
+    fun settingsResolveDownloadFolderPrefersConfiguredAbsolutePath() {
+        val defaultFolder = "/storage/emulated/0/Android/data/com.misterdownloadmanager.port/files/Download"
+        assertEquals(defaultFolder, Settings().resolveDownloadFolder(defaultFolder))
+        assertEquals(defaultFolder, Settings(downloadFolder = "   ").resolveDownloadFolder(defaultFolder))
+        assertEquals("/storage/emulated/0/Download", Settings(downloadFolder = "/storage/emulated/0/Download").resolveDownloadFolder(defaultFolder))
+        assertEquals("/storage/emulated/0/Download", Settings(downloadFolder = "  /storage/emulated/0/Download  ").resolveDownloadFolder(defaultFolder))
+        assertEquals("/storage/emulated/0/Download", Settings(downloadFolder = "file:///storage/emulated/0/Download").resolveDownloadFolder(defaultFolder))
+        assertEquals(defaultFolder, Settings(downloadFolder = "Download").resolveDownloadFolder(defaultFolder))
+    }
+
+    @Test
     fun plannerSplitAlignsAndFallsBackToUnalignedMidpoint() {
         val planner = SegmentPlanner(100_000L, 12_288L)
         val first = planner.claim(0, null)

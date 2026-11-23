@@ -57,7 +57,7 @@ distribution; in this VM that download is blocked by the sandbox
 proxy (`SSLException: Unsupported or unrecognized SSL message`), so
 this is an environment limitation, not a project error. All 49 Kotlin
 files were instead type-checked directly with kotlinc 2.0.21 against
-the real dependency artifacts (see "What was verified"), and all 20
+the real dependency artifacts (see "What was verified"), and all 21
 unit tests pass. Run `./gradlew assembleDebug` on a machine with
 unrestricted networking and loopback before release.
 
@@ -301,8 +301,14 @@ app/src/main/java/com/misterdownloadmanager/port/
   than the download, the channel keeps only the newest update instead
   of queueing a backlog, so the list always shows the latest progress
   with no fixed delay and no spam. Pausing from the UI cancels the
-  running engine job. On boot the receiver starts the service, which resumes queued
-  downloads when `resumeOnStart` is on.
+  running engine job. New downloads go to the folder from Settings
+  when it names an absolute path, otherwise to the app-specific
+  Download folder; the engine creates the folder before writing, and
+  a folder that cannot be created fails the download at once with a
+  clear message instead of retrying. The total size from the HEAD
+  response is shown as soon as it is known. On boot the receiver
+  starts the service, which resumes queued downloads when
+  `resumeOnStart` is on.
 - The upstream `unsafe_code = "deny"` workspace lint is honoured in
   spirit: this port contains no native code and no unsafe calls.
 - The theme follows the system. Material 3 DayNight is used, with
@@ -369,7 +375,9 @@ Behaviour changes considered per version:
   tiling, checksum parsing (including rejection of a wrong length for a
   named algorithm), category matching, file naming (230-character cap,
   reserved names, numbering from 1, and preferring the `file=` query
-  value over a script endpoint such as `download.php`), magnet parsing,
+  value over a script endpoint such as `download.php`), download
+  folder resolution (absolute paths from Settings, blank and relative
+  values falling back to the default), magnet parsing,
   tracker filtering, Click'n'Load decryption with the key as IV, the
   eight-digit pairing code and its ten-minute expiry, DNS presets,
   archive magic detection and safe paths, geo flag cells and reserved
@@ -425,7 +433,7 @@ Behaviour changes considered per version:
   `DownloadItem`, a non-exhaustive `when` on the proxy scheme, a
   non-comparable `Pair` selector in the planner, and `fromHeaders`
   placed on the wrong companion object).
-- All 20 unit tests in `PortLogicTest` pass under JUnit 4.13.2,
+- All 21 unit tests in `PortLogicTest` pass under JUnit 4.13.2,
   re-run with kotlinc 2.0.21 against the freshly compiled project
   classes (run directly with the kotlinc output, since Gradle cannot
   run here). Running them earlier caught two more real bugs
@@ -448,6 +456,13 @@ Behaviour changes considered per version:
   engine progress to the list, cancels the running job when the item
   is paused or deleted, and lets the engine rename the target file to
   the `HEAD` response's `Content-Disposition` name before writing.
+  Testing the fixed build on a real device found one more bug the
+  static checks could not see: adding a download ignored the folder
+  from Settings entirely and always used the app-specific Download
+  folder, and the engine never created that folder, so the first
+  download on a fresh install failed opening the target file with
+  `ENOENT`. The folder from Settings is now used for new downloads,
+  and the engine creates the destination folder before writing.
 
 ## What still needs testing on a real device or emulator
 

@@ -64,6 +64,13 @@ class DownloadEngine(private val settings: Settings) {
                     }
                     nameResolved = true
                 }
+                val folder = effectiveTarget.parentFile
+                if (folder != null) {
+                    folder.mkdirs()
+                    if (!folder.isDirectory) {
+                        throw DownloadFolderFailure(folder.absolutePath)
+                    }
+                }
                 val fileName = current.fileName
                 var downloaded = current.downloadedBytes
                 if (total <= 0L || rangesFailed) {
@@ -74,6 +81,8 @@ class DownloadEngine(private val settings: Settings) {
                     }
                     current = current.copy(downloadedBytes = written, totalBytes = written)
                 } else {
+                    current = current.copy(totalBytes = total, resumeSupported = head.resumeSupported)
+                    update(current)
                     val planner = if (head.resumeSupported && effectiveTarget.exists() && effectiveTarget.length() > 0L && effectiveTarget.length() < total) {
                         SegmentPlanner.resume(
                             size = total,
@@ -122,6 +131,9 @@ class DownloadEngine(private val settings: Settings) {
             } catch (e: ChecksumFailure) {
                 current = fail(current, DownloadError.ChecksumMismatch(e.expected.hex, e.actual))
                 return current
+            } catch (e: DownloadFolderFailure) {
+                current = fail(current, DownloadError.Network("Cannot create download folder: ${e.folder}."))
+                return current
             } catch (e: Exception) {
                 attempt += 1
                 if (attempt > settings.maxRetries) {
@@ -148,4 +160,6 @@ class DownloadEngine(private val settings: Settings) {
     }
 
     class ChecksumFailure(val expected: Checksum, val actual: String) : Exception("Checksum mismatch.")
+
+    class DownloadFolderFailure(val folder: String) : Exception("Cannot create download folder.")
 }
