@@ -28,6 +28,8 @@ import com.misterdownloadmanager.port.core.remote.RemoteDeviceTokens
 import com.misterdownloadmanager.port.core.remote.RemotePairing
 import com.misterdownloadmanager.port.core.torrent.MagnetLink
 import com.misterdownloadmanager.port.core.torrent.TrackerFilter
+import com.misterdownloadmanager.port.core.tools.TreeUriPath
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -114,6 +116,32 @@ class PortLogicTest {
         assertEquals("/storage/emulated/0/Download", Settings(downloadFolder = "  /storage/emulated/0/Download  ").resolveDownloadFolder(defaultFolder))
         assertEquals("/storage/emulated/0/Download", Settings(downloadFolder = "file:///storage/emulated/0/Download").resolveDownloadFolder(defaultFolder))
         assertEquals(defaultFolder, Settings(downloadFolder = "Download").resolveDownloadFolder(defaultFolder))
+    }
+
+    @Test
+    fun treeDocumentIdResolvesToFilesystemPath() {
+        assertEquals("/storage/emulated/0/Download", TreeUriPath.resolveTreeDocumentId("primary:Download", "/storage/emulated/0"))
+        assertEquals("/storage/emulated/0", TreeUriPath.resolveTreeDocumentId("primary:", "/storage/emulated/0"))
+        assertEquals("/storage/emulated/0", TreeUriPath.resolveTreeDocumentId("primary", "/storage/emulated/0"))
+        assertEquals("/storage/1234-ABCD/Music", TreeUriPath.resolveTreeDocumentId("1234-ABCD:Music", "/storage/emulated/0"))
+        assertEquals("/storage/1234-ABCD", TreeUriPath.resolveTreeDocumentId("1234-ABCD", "/storage/emulated/0"))
+        assertNull(TreeUriPath.resolveTreeDocumentId("", "/storage/emulated/0"))
+        assertNull(TreeUriPath.resolveTreeDocumentId(":Download", "/storage/emulated/0"))
+    }
+
+    @Test
+    fun folderWritabilityProbeAcceptsWritableFolder() {
+        val folder = File(System.getProperty("java.io.tmpdir"), "mdm-writable-" + System.nanoTime())
+        assertTrue(TreeUriPath.isFolderWritable(folder.absolutePath))
+        assertTrue(folder.isDirectory)
+        folder.delete()
+    }
+
+    @Test
+    fun folderWritabilityProbeRejectsFilePath() {
+        val file = File.createTempFile("mdm-file-", ".tmp")
+        assertFalse(TreeUriPath.isFolderWritable(file.absolutePath))
+        file.delete()
     }
 
     @Test

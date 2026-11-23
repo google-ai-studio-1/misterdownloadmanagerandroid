@@ -75,6 +75,9 @@
     <string name="settings_max_downloads">Maximum simultaneous downloads</string>
     <string name="settings_max_connections">Maximum connections per download</string>
     <string name="settings_download_folder">Download folder</string>
+    <string name="settings_browse">Browse</string>
+    <string name="settings_folder_not_supported">This folder cannot be used. Choose a folder on device storage.</string>
+    <string name="settings_folder_not_writable">This folder cannot be written to. Choose another folder.</string>
     <string name="settings_auto_start">Start downloads automatically</string>
     <string name="settings_resume_on_start">Resume downloads on start</string>
     <string name="settings_notifications">Show notifications</string>

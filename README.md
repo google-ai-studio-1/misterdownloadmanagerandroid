@@ -55,9 +55,9 @@ the official `gradlew` and `gradlew.bat` scripts. With the correct
 jar, `./gradlew` starts and begins downloading the Gradle 8.7
 distribution; in this VM that download is blocked by the sandbox
 proxy (`SSLException: Unsupported or unrecognized SSL message`), so
-this is an environment limitation, not a project error. All 49 Kotlin
+this is an environment limitation, not a project error. All 50 Kotlin
 files were instead type-checked directly with kotlinc 2.0.21 against
-the real dependency artifacts (see "What was verified"), and all 21
+the real dependency artifacts (see "What was verified"), and all 24
 unit tests pass. Run `./gradlew assembleDebug` on a machine with
 unrestricted networking and loopback before release.
 
@@ -303,7 +303,12 @@ app/src/main/java/com/misterdownloadmanager/port/
   with no fixed delay and no spam. Pausing from the UI cancels the
   running engine job. New downloads go to the folder from Settings
   when it names an absolute path, otherwise to the app-specific
-  Download folder; the engine creates the folder before writing, and
+  Download folder; the folder can be typed in or picked with the
+  Browse button, which opens the system folder picker. A picked folder
+  is resolved to a path on device storage and checked for writability
+  before it is saved, and a folder that cannot be used or written to
+  shows an error instead of being saved. The engine creates the folder
+  before writing, and
   a folder that cannot be created fails the download at once with a
   clear message instead of retrying. The total size from the HEAD
   response is shown as soon as it is known. If the server rejects a
@@ -437,7 +442,7 @@ Behaviour changes considered per version:
   `DownloadItem`, a non-exhaustive `when` on the proxy scheme, a
   non-comparable `Pair` selector in the planner, and `fromHeaders`
   placed on the wrong companion object).
-- All 21 unit tests in `PortLogicTest` pass under JUnit 4.13.2,
+- All 24 unit tests in `PortLogicTest` pass under JUnit 4.13.2,
   re-run with kotlinc 2.0.21 against the freshly compiled project
   classes (run directly with the kotlinc output, since Gradle cannot
   run here). Running them earlier caught two more real bugs
