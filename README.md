@@ -42,14 +42,24 @@ this sandbox, even though a plain TCP connection to `127.0.0.1`
 succeeds. The same failure happens with `--no-daemon`,
 `org.gradle.daemon=false`, IPv6 loopback flags and `--offline`, and
 with the installed Gradle 8.7 binary as well as `./gradlew`. The
-wrapper jar itself was verified byte-identical to the official
-Gradle 8.7 wrapper jar downloaded fresh from services.gradle.org,
-and it fails the same way in a clean directory, so this is an
-environment limitation, not a project error. All 48 Kotlin files
-were instead type-checked directly with kotlinc 2.0.21 against the
-real dependency artifacts (see "What was verified"), and all 19
+wrapper jar originally shipped in this repo was also the wrong
+artifact: it was the Gradle distribution's bootstrap container jar
+(49,625 bytes), whose outer `GradleWrapperMain` references
+`org.gradle.wrapper.IDownload`, a class that does not exist in
+Gradle 8.7, so `./gradlew` failed immediately with
+`NoClassDefFoundError: org/gradle/wrapper/IDownload`. It has been
+replaced with the real flat project wrapper jar (43,453 bytes,
+SHA-256 `cb0da6751c2b753a16ac168bb354870ebb1e162e9083f116729cec9c781156b8`)
+taken from the Gradle project's own `v8.7.0` wrapper, together with
+the official `gradlew` and `gradlew.bat` scripts. With the correct
+jar, `./gradlew` starts and begins downloading the Gradle 8.7
+distribution; in this VM that download is blocked by the sandbox
+proxy (`SSLException: Unsupported or unrecognized SSL message`), so
+this is an environment limitation, not a project error. All 48 Kotlin
+files were instead type-checked directly with kotlinc 2.0.21 against
+the real dependency artifacts (see "What was verified"), and all 19
 unit tests pass. Run `./gradlew assembleDebug` on a machine with
-unrestricted loopback networking before release.
+unrestricted networking and loopback before release.
 
 ## Project layout
 
@@ -353,10 +363,16 @@ Behaviour changes considered per version:
   even though a plain TCP connection to `127.0.0.1` succeeds. The same
   failure happens with `--no-daemon`, `org.gradle.daemon=false`, IPv6
   loopback flags and `--offline`, and with the installed Gradle 8.7
-  binary as well as `./gradlew`. The wrapper jar itself was verified
-  byte-identical to the official Gradle 8.7 wrapper jar downloaded
-  fresh from services.gradle.org, and it fails the same way in a clean
-  directory, so this is an environment limitation, not a project error.
+  binary as well as `./gradlew`. The wrapper jar originally shipped
+  here was the wrong artifact (the distribution's 49,625-byte
+  bootstrap container jar, whose outer `GradleWrapperMain` references
+  the non-existent `org.gradle.wrapper.IDownload`); it has been
+  replaced with the real flat project wrapper jar (43,453 bytes,
+  SHA-256 `cb0da6751c2b753a16ac168bb354870ebb1e162e9083f116729cec9c781156b8`)
+  from the Gradle project's own `v8.7.0` wrapper, and `./gradlew`
+  now starts and begins downloading the distribution (blocked in
+  this VM only by the sandbox proxy), so the remaining failure is an
+  environment limitation, not a project error.
 - The Kotlin code was type-checked directly with kotlinc 2.0.21 (the
   version the project declares), the Compose compiler plugin 2.0.21
   and the serialization compiler plugin, against the real dependency
