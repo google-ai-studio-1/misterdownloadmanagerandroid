@@ -1,0 +1,2 @@
+-keep class com.misterdownloadmanager.port.core.model.** { *; }
+-keepclassmembers class kotlinx.serialization.json.** { *; }
