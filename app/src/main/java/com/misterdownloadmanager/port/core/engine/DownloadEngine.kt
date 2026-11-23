@@ -40,31 +40,51 @@ class DownloadEngine(private val settings: Settings) {
         update(current)
         var attempt = 0
         var rangesFailed = false
+        var effectiveTarget = target
+        var nameResolved = false
         while (true) {
             try {
                 val head = http.head(current)
                 val total = head.totalBytes
-                val fileName = head.fileName ?: current.fileName
+                if (!nameResolved) {
+                    val resolvedName = FileNaming.sanitize(head.fileName ?: current.fileName)
+                    if (resolvedName != effectiveTarget.name) {
+                        val candidate = File(effectiveTarget.parentFile, resolvedName)
+                        val finalTarget = if (candidate.exists() && candidate.absolutePath != effectiveTarget.absolutePath) {
+                            File(effectiveTarget.parentFile, FileNaming.unique(resolvedName) { File(effectiveTarget.parentFile, it).exists() })
+                        } else {
+                            candidate
+                        }
+                        if (effectiveTarget.exists() && effectiveTarget.absolutePath != finalTarget.absolutePath) {
+                            effectiveTarget.renameTo(finalTarget)
+                        }
+                        effectiveTarget = finalTarget
+                        current = current.copy(fileName = finalTarget.name)
+                        update(current)
+                    }
+                    nameResolved = true
+                }
+                val fileName = current.fileName
                 var downloaded = current.downloadedBytes
                 if (total <= 0L || rangesFailed) {
-                    val written = http.downloadUnknown(current.copy(fileName = fileName), target) { bytes ->
+                    val written = http.downloadUnknown(current.copy(fileName = fileName), effectiveTarget) { bytes ->
                         downloaded += bytes
                         current = current.copy(downloadedBytes = downloaded, totalBytes = -1L, resumeSupported = false)
                         update(current)
                     }
                     current = current.copy(downloadedBytes = written, totalBytes = written)
                 } else {
-                    val planner = if (head.resumeSupported && target.exists() && target.length() > 0L && target.length() < total) {
+                    val planner = if (head.resumeSupported && effectiveTarget.exists() && effectiveTarget.length() > 0L && effectiveTarget.length() < total) {
                         SegmentPlanner.resume(
                             size = total,
                             minSplit = settings.minSplitBytes,
-                            saved = listOf(SavedSegment(0L, total, target.length()))
+                            saved = listOf(SavedSegment(0L, total, effectiveTarget.length()))
                         )
                     } else {
                         SegmentPlanner(total, settings.minSplitBytes)
                     }
-                    DiskWriter(target).ensureSize(total)
-                    http.download(current.copy(fileName = fileName), target, planner) { bytes ->
+                    DiskWriter(effectiveTarget).ensureSize(total)
+                    http.download(current.copy(fileName = fileName), effectiveTarget, planner) { bytes ->
                         downloaded += bytes
                         current = current.copy(downloadedBytes = downloaded, totalBytes = total, resumeSupported = head.resumeSupported)
                         update(current)
@@ -75,9 +95,9 @@ class DownloadEngine(private val settings: Settings) {
                 if (settings.verifyChecksumAfterDownload && expected != null) {
                     current = current.copy(status = DownloadStatus.DOWNLOADING)
                     update(current)
-                    val ok = ChecksumVerifier.verify(target, expected)
+                    val ok = ChecksumVerifier.verify(effectiveTarget, expected)
                     if (!ok) {
-                        val actual = ChecksumVerifier.compute(target, expected.algorithm)
+                        val actual = ChecksumVerifier.compute(effectiveTarget, expected.algorithm)
                         throw ChecksumFailure(expected, actual)
                     }
                 }

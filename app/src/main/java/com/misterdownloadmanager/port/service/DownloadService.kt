@@ -14,48 +14,136 @@ import com.misterdownloadmanager.port.MainActivity
 import com.misterdownloadmanager.port.R
 import com.misterdownloadmanager.port.core.engine.DownloadEngine
 import com.misterdownloadmanager.port.core.model.DownloadItem
-import com.misterdownloadmanager.port.core.model.Settings
+import com.misterdownloadmanager.port.core.model.DownloadStatus
+import com.misterdownloadmanager.port.data.DownloadContainer
 import com.misterdownloadmanager.port.data.DownloadRepository
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.File
 
 class DownloadService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @Volatile
     private var engine: DownloadEngine? = null
+
+    @Volatile
     private var repository: DownloadRepository? = null
+
+    @Volatile
     private var job: Job? = null
+
+    @Volatile
+    private var runningId: Long? = null
+
+    @Volatile
+    private var lastForwardedMillis: Long = 0L
+
+    private val queueMutex = Mutex()
+    private lateinit var setup: Deferred<Unit>
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        val settings = Settings()
-        engine = DownloadEngine(settings)
-        repository = DownloadRepository(filesDir)
+        val app = applicationContext
+        setup = scope.async {
+            val repo = DownloadContainer.repository(app)
+            repository = repo
+            repo.loadOnce()
+            engine = DownloadContainer.engine(app, repo.settings.value)
+            scope.launch { collectEngineStates() }
+            scope.launch { collectRepositoryItems() }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val itemId = intent?.getLongExtra(EXTRA_DOWNLOAD_ID, -1L) ?: -1L
         startForeground(NOTIFICATION_ID, buildNotification())
-        if (itemId >= 0L) {
-            val item = repository?.items?.value?.firstOrNull { it.id == itemId }
-            if (item != null) startDownload(item)
+        scope.launch {
+            setup.await()
+            if (itemId >= 0L) {
+                processQueue()
+            } else if (repository?.settings?.value?.resumeOnStart == true) {
+                processQueue()
+            } else {
+                stopForeground(STOP_FOREGROUND_DETACH)
+                stopSelf()
+            }
         }
         return START_STICKY
     }
 
-    fun startDownload(item: DownloadItem) {
-        job?.cancel()
+    private suspend fun collectEngineStates() {
+        val eng = engine ?: return
+        eng.states.collect { states ->
+            val repo = repository ?: return@collect
+            val now = System.currentTimeMillis()
+            var forwarded = false
+            states.values.forEach { item ->
+                val terminal = item.status != DownloadStatus.DOWNLOADING
+                if (terminal || now - lastForwardedMillis >= 250L) {
+                    repo.update(item)
+                    forwarded = true
+                }
+            }
+            if (forwarded) lastForwardedMillis = now
+        }
+    }
+
+    private suspend fun collectRepositoryItems() {
+        val repo = repository ?: return
+        repo.items.collect { items ->
+            val running = runningId ?: return@collect
+            val current = items.firstOrNull { it.id == running }
+            if (current == null || current.status == DownloadStatus.STOPPED) {
+                job?.cancel()
+            }
+        }
+    }
+
+    private suspend fun processQueue() {
+        queueMutex.withLock {
+            if (job?.isActive == true) return
+            val repo = repository ?: return
+            val next = repo.items.value
+                .filter { it.status == DownloadStatus.QUEUED }
+                .minByOrNull { it.id }
+            if (next == null) {
+                stopForeground(STOP_FOREGROUND_DETACH)
+                stopSelf()
+                return
+            }
+            startDownload(next)
+        }
+    }
+
+    private fun startDownload(item: DownloadItem) {
+        val repo = repository ?: return
+        val eng = engine ?: return
+        runningId = item.id
         job = scope.launch {
-            val target = File(item.destinationFolder, item.fileName)
-            engine?.run(item, target)
-            repository?.save()
-            stopForeground(STOP_FOREGROUND_DETACH)
-            stopSelf()
+            try {
+                val target = File(item.destinationFolder, item.fileName)
+                val result = eng.run(item, target)
+                repo.update(result)
+            } finally {
+                withContext(NonCancellable) {
+                    repo.save()
+                    runningId = null
+                    job = null
+                    processQueue()
+                }
+            }
         }
     }
 
@@ -74,7 +162,7 @@ class DownloadService : Service() {
 
     private fun buildNotification(): Notification {
         val intent = Intent(this, MainActivity::class.java)
-        val pending = PendingIntent.getActivity(
+        val pendingIntent = PendingIntent.getActivity(
             this, 0, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -82,7 +170,7 @@ class DownloadService : Service() {
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.status_downloading))
             .setSmallIcon(R.drawable.ic_download)
-            .setContentIntent(pending)
+            .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()
     }

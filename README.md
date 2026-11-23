@@ -55,9 +55,9 @@ the official `gradlew` and `gradlew.bat` scripts. With the correct
 jar, `./gradlew` starts and begins downloading the Gradle 8.7
 distribution; in this VM that download is blocked by the sandbox
 proxy (`SSLException: Unsupported or unrecognized SSL message`), so
-this is an environment limitation, not a project error. All 48 Kotlin
+this is an environment limitation, not a project error. All 49 Kotlin
 files were instead type-checked directly with kotlinc 2.0.21 against
-the real dependency artifacts (see "What was verified"), and all 19
+the real dependency artifacts (see "What was verified"), and all 20
 unit tests pass. Run `./gradlew assembleDebug` on a machine with
 unrestricted networking and loopback before release.
 
@@ -90,7 +90,7 @@ app/src/main/java/com/misterdownloadmanager/port/
   core/tools/        VideoTools
   core/labserver/    LabServer
   core/nmhost/       NativeMessagingHost
-  data/              Store, DownloadRepository
+  data/              Store, DownloadRepository, DownloadContainer
   service/           DownloadService, DownloadBootReceiver
   ui/                DownloadViewModel, theme/Theme, icons/MdmIcons,
                      screens/DownloadListScreen, AddDownloadScreen,
@@ -146,12 +146,20 @@ app/src/main/java/com/misterdownloadmanager/port/
   forgives the accumulated debt.
 - File naming (`FileNaming`, from `engine/naming.rs`): the name comes
   from `Content-Disposition` first, then from the URL (a `file=` or
-  `filename=` query value when the last path segment names nothing, then
-  the last path segment). Names are sanitized (format characters removed,
-  control characters and `<>:"/\|?*` become `_`, trailing dots and spaces
-  removed, empty becomes `download`, Windows device names get a `_`
-  prefix), capped at 230 characters. A taken name becomes
-  `stem (1).ext`, `stem (2).ext`, and so on.
+  `filename=` query value when the last path segment names nothing,
+  then the last path segment). A last path segment that is a server
+  script (`download.php`, `getfile.aspx`, and similar) is never used
+  as the file name: the `file=`/`filename=` query value is used
+  instead, and when there is none the name falls back to `download`.
+  When the `HEAD` response carries a `Content-Disposition` name that
+  differs from the name chosen at add time, the engine renames the
+  target file to it before writing (an existing file with that name
+  is not overwritten; a numbered name is used instead). Names are
+  sanitized (format characters removed, control characters and
+  `<>:"/\|?*` become `_`, trailing dots and spaces removed, empty
+  becomes `download`, Windows device names get a `_` prefix), capped
+  at 230 characters. A taken name becomes `stem (1).ext`,
+  `stem (2).ext`, and so on.
 - Disk space (`DiskSpace`, from `engine/disk.rs`): 128 MiB is kept free
   besides the file size, and files over 4 GiB minus 1 byte are refused
   on FAT32. Sparse files are only used above 5 MiB upstream; Android
@@ -282,6 +290,15 @@ app/src/main/java/com/misterdownloadmanager/port/
   notification channel, `WorkManager` for background work, and the
   system file picker. Wake timers and shutting the computer down have no
   Android equivalent and are not implemented.
+- Downloads are executed by the foreground service, not by the UI.
+  Adding, resuming or retrying a download starts the service, which
+  runs queued downloads one at a time and then stops itself when the
+  queue is empty. The UI and the service share one repository and one
+  engine through `DownloadContainer`, so progress, status and the
+  corrected file name reach the list live (progress is forwarded at
+  most every 250 ms). Pausing from the UI cancels the running engine
+  job. On boot the receiver starts the service, which resumes queued
+  downloads when `resumeOnStart` is on.
 - The upstream `unsafe_code = "deny"` workspace lint is honoured in
   spirit: this port contains no native code and no unsafe calls.
 - The theme follows the system. Material 3 DayNight is used, with
@@ -347,11 +364,12 @@ Behaviour changes considered per version:
   the segment planner (including the aligned and unaligned split), resume
   tiling, checksum parsing (including rejection of a wrong length for a
   named algorithm), category matching, file naming (230-character cap,
-  reserved names, numbering from 1), magnet parsing, tracker filtering,
-  Click'n'Load decryption with the key as IV, the eight-digit pairing
-  code and its ten-minute expiry, DNS presets, archive magic detection
-  and safe paths, geo flag cells and reserved addresses, the retry
-  backoff, the CLI command set, and the IPC limits.
+  reserved names, numbering from 1, and preferring the `file=` query
+  value over a script endpoint such as `download.php`), magnet parsing,
+  tracker filtering, Click'n'Load decryption with the key as IV, the
+  eight-digit pairing code and its ten-minute expiry, DNS presets,
+  archive magic detection and safe paths, geo flag cells and reserved
+  addresses, the retry backoff, the CLI command set, and the IPC limits.
 - JDK 17 was installed in this environment and the Android SDK
   command-line tools, platform API 36, build-tools 36.0.0 and
   platform-tools were installed from the official Google downloads.
@@ -381,7 +399,7 @@ Behaviour changes considered per version:
   1.8.1, OkHttp 4.12.0, serialization 1.7.3) plus `android.jar` from
   platform API 36 and `R`/`BuildConfig` stubs generated from the
   project's own resources (in a real Gradle build those two classes
-  are generated by the Android Gradle plugin). All 48 of the 48 main
+  are generated by the Android Gradle plugin). All 49 of the 49 main
   Kotlin files compile cleanly with 0 errors, including the 11 files
   that were previously unverified: the 5 Compose screens
   (`DownloadListScreen`, `AddDownloadScreen`, `DownloadDetailScreen`,
@@ -403,12 +421,29 @@ Behaviour changes considered per version:
   `DownloadItem`, a non-exhaustive `when` on the proxy scheme, a
   non-comparable `Pair` selector in the planner, and `fromHeaders`
   placed on the wrong companion object).
-- All 19 unit tests in `PortLogicTest` pass under JUnit 4.13.2,
+- All 20 unit tests in `PortLogicTest` pass under JUnit 4.13.2,
   re-run with kotlinc 2.0.21 against the freshly compiled project
   classes (run directly with the kotlinc output, since Gradle cannot
   run here). Running them earlier caught two more real bugs
   (case-insensitive magnet parsing and a wrong resume-bytes
   expectation), both fixed.
+- Live testing against a real signed download link
+  (`download.php?file=...7z`, 3.6 GB, nginx, `Accept-Ranges: bytes`,
+  `Content-Disposition` with the real file name) found and fixed two
+  real bugs that static checks could not see: `FileNaming.fromUrl`
+  used the last path segment whenever it contained a dot, so a script
+  endpoint such as `download.php` became the file name even when the
+  `file=` query value named the real file; and no download ever
+  started, because nothing called `DownloadService.start`, the boot
+  receiver did nothing, the service's repository read a different
+  `downloads.json` than the UI's and was never loaded, and engine
+  progress went to a flow nobody collected. The fix wires the UI and
+  the service to one shared repository and engine
+  (`data/DownloadContainer`), starts the service when a download is
+  added, resumed or retried, loads the shared store once, forwards
+  engine progress to the list, cancels the running job when the item
+  is paused or deleted, and lets the engine rename the target file to
+  the `HEAD` response's `Content-Disposition` name before writing.
 
 ## What still needs testing on a real device or emulator
 

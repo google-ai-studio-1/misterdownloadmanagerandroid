@@ -89,6 +89,23 @@ class PortLogicTest {
     }
 
     @Test
+    fun fileNamingPrefersQueryFileOverScriptEndpoint() {
+        assertEquals(
+            "Shin Megami Tensei - Persona 4 (PSP Port b450) [dreikk91].7z",
+            FileNaming.fromUrl("https://meryl.retrogametalk.com/download.php?file=Shin%20Megami%20Tensei%20-%20Persona%204%20%28PSP%20Port%20b450%29%20%5Bdreikk91%5D.7z&id=303631&platform=psp&exp=1795455385&u=116188&w=0&key=f3ab8fafcf502a6f076e6e23a52836a5")
+        )
+        assertEquals("setup.zip", FileNaming.fromUrl("https://example.com/getfile.aspx?filename=setup.zip"))
+        assertEquals("movie.mkv", FileNaming.fromUrl("https://example.com/DOWNLOAD.PHP?file=movie.mkv"))
+        assertEquals("download", FileNaming.fromUrl("https://example.com/download.php?id=42"))
+        assertEquals("archive.tar.gz", FileNaming.fromUrl("https://example.com/files/archive.tar.gz"))
+        assertEquals("setup.zip", FileNaming.fromUrl("https://example.com/download?file=setup.zip"))
+        assertEquals(
+            "Shin Megami Tensei - Persona 4 (PSP Port b450) [dreikk91].7z",
+            FileNaming.fromContentDisposition("attachment; filename=\"Shin Megami Tensei - Persona 4 (PSP Port b450) [dreikk91].7z\"; filename*=UTF-8''Shin%20Megami%20Tensei%20-%20Persona%204%20%28PSP%20Port%20b450%29%20%5Bdreikk91%5D.7z")
+        )
+    }
+
+    @Test
     fun plannerSplitAlignsAndFallsBackToUnalignedMidpoint() {
         val planner = SegmentPlanner(100_000L, 12_288L)
         val first = planner.claim(0, null)

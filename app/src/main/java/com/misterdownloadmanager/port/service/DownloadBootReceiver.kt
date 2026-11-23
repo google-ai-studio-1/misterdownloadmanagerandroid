@@ -7,7 +7,7 @@ import android.content.Intent
 class DownloadBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            return
+            DownloadService.start(context, -1L)
         }
     }
 }

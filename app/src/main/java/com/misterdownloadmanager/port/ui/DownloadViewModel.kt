@@ -3,14 +3,14 @@ package com.misterdownloadmanager.port.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.misterdownloadmanager.port.core.engine.DownloadEngine
 import com.misterdownloadmanager.port.core.engine.FileNaming
 import com.misterdownloadmanager.port.core.model.Category
 import com.misterdownloadmanager.port.core.model.DownloadItem
 import com.misterdownloadmanager.port.core.model.DownloadKind
 import com.misterdownloadmanager.port.core.model.DownloadStatus
 import com.misterdownloadmanager.port.core.model.Settings
-import com.misterdownloadmanager.port.data.DownloadRepository
+import com.misterdownloadmanager.port.data.DownloadContainer
+import com.misterdownloadmanager.port.service.DownloadService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,8 +18,8 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 class DownloadViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = DownloadRepository(File(application.filesDir, "data"))
-    private val engine = DownloadEngine(Settings())
+    private val repository = DownloadContainer.repository(application)
+    private val engine by lazy { DownloadContainer.engine(application, repository.settings.value) }
 
     val items: StateFlow<List<DownloadItem>> = repository.items
     val settings: StateFlow<Settings> = repository.settings
@@ -35,7 +35,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
 
     init {
         viewModelScope.launch {
-            repository.load()
+            repository.loadOnce()
         }
     }
 
@@ -83,6 +83,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         )
         repository.add(item)
         viewModelScope.launch { repository.save() }
+        DownloadService.start(getApplication(), item.id)
         return item
     }
 
@@ -96,6 +97,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         if (!item.status.canResume()) return
         repository.update(item.copy(status = DownloadStatus.QUEUED, error = null))
         viewModelScope.launch { repository.save() }
+        DownloadService.start(getApplication(), item.id)
     }
 
     fun deleteDownload(item: DownloadItem, deleteFile: Boolean) {
@@ -106,6 +108,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     fun retryDownload(item: DownloadItem) {
         repository.update(item.copy(status = DownloadStatus.QUEUED, error = null, downloadedBytes = item.downloadedBytes))
         viewModelScope.launch { repository.save() }
+        DownloadService.start(getApplication(), item.id)
     }
 
     fun clearCompleted() {

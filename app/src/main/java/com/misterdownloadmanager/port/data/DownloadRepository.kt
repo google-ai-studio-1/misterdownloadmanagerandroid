@@ -12,6 +12,7 @@ import java.io.File
 class DownloadRepository(private val directory: File) {
     private val mutex = Mutex()
     private var nextId: Long = 1L
+    private var loaded: Boolean = false
     private val _items = MutableStateFlow<List<DownloadItem>>(emptyList())
     val items: StateFlow<List<DownloadItem>> = _items.asStateFlow()
     private val _settings = MutableStateFlow(Settings())
@@ -19,11 +20,24 @@ class DownloadRepository(private val directory: File) {
 
     suspend fun load() {
         mutex.withLock {
-            val data = Store.load(directory)
-            nextId = data.nextId
-            _items.value = data.items
-            _settings.value = data.settings.validated()
+            loadLocked()
         }
+    }
+
+    suspend fun loadOnce() {
+        mutex.withLock {
+            if (!loaded) {
+                loadLocked()
+                loaded = true
+            }
+        }
+    }
+
+    private fun loadLocked() {
+        val data = Store.load(directory)
+        nextId = data.nextId
+        _items.value = data.items
+        _settings.value = data.settings.validated()
     }
 
     suspend fun save() {

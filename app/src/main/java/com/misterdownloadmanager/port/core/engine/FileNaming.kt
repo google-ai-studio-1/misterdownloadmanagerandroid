@@ -11,6 +11,12 @@ object FileNaming {
     )
     const val MAX_NAME_LENGTH: Int = 230
 
+    private val SCRIPT_EXTENSIONS = setOf(
+        "php", "php3", "php4", "php5", "php7", "php8", "phtml",
+        "asp", "aspx", "ashx", "asmx", "jsp", "jspx", "cgi", "pl",
+        "py", "rb", "cfm", "cfc", "do", "action"
+    )
+
     fun fromUrl(url: String): String {
         val withoutQuery = url.substringBefore('?').substringBefore('#')
         val queryName = url.substringAfter('?', "")
@@ -23,10 +29,13 @@ object FileNaming {
             ?.substringAfter('=', "")
             ?.takeIf { it.isNotBlank() }
         val lastSegment = withoutQuery.substringAfterLast('/').ifBlank { "download" }
-        val named = if (lastSegment == "download" || lastSegment.contains('.').not()) {
-            queryName ?: lastSegment
-        } else {
-            lastSegment
+        val extension = lastSegment.substringAfterLast('.', "").lowercase()
+        val isScript = extension.isNotEmpty() && SCRIPT_EXTENSIONS.contains(extension)
+        val named = when {
+            lastSegment == "download" -> queryName ?: lastSegment
+            isScript -> queryName ?: "download"
+            lastSegment.contains('.').not() -> queryName ?: lastSegment
+            else -> lastSegment
         }
         return sanitize(decode(named))
     }
