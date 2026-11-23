@@ -40,6 +40,7 @@ class DownloadEngine(private val settings: Settings) {
         update(current)
         var attempt = 0
         var rangesFailed = false
+        var rangeRestarts = 0
         var effectiveTarget = target
         var nameResolved = false
         while (true) {
@@ -121,6 +122,18 @@ class DownloadEngine(private val settings: Settings) {
                 rangesFailed = true
                 continue
             } catch (e: HttpDownloader.HttpFailure) {
+                if (e.statusCode == 416) {
+                    if (rangeRestarts < 2) {
+                        rangeRestarts += 1
+                        effectiveTarget.delete()
+                        rangesFailed = false
+                        current = current.copy(downloadedBytes = 0L)
+                        update(current)
+                        continue
+                    }
+                    current = fail(current, DownloadError.Network("The server rejected the requested part of the file (HTTP 416) even after restarting the download from the beginning."))
+                    return current
+                }
                 val retryable = e.statusCode == 429 || e.statusCode in 500..599
                 attempt += 1
                 if (!retryable || attempt > settings.maxRetries) {

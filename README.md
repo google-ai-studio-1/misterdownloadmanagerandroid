@@ -306,9 +306,13 @@ app/src/main/java/com/misterdownloadmanager/port/
   Download folder; the engine creates the folder before writing, and
   a folder that cannot be created fails the download at once with a
   clear message instead of retrying. The total size from the HEAD
-  response is shown as soon as it is known. On boot the receiver
-  starts the service, which resumes queued downloads when
-  `resumeOnStart` is on.
+  response is shown as soon as it is known. If the server rejects a
+  requested part of the file with HTTP 416, the engine discards the
+  partial file and restarts the download from the beginning, at most
+  twice, instead of failing at once, because a 416 means the range
+  the app asked for no longer matches the file on the server. On boot
+  the receiver starts the service, which resumes queued downloads
+  when `resumeOnStart` is on.
 - The upstream `unsafe_code = "deny"` workspace lint is honoured in
   spirit: this port contains no native code and no unsafe calls.
 - The theme follows the system. Material 3 DayNight is used, with
@@ -463,6 +467,11 @@ Behaviour changes considered per version:
   download on a fresh install failed opening the target file with
   `ENOENT`. The folder from Settings is now used for new downloads,
   and the engine creates the destination folder before writing.
+  Testing the fixed build on a real device then found an HTTP 416:
+  the server rejects any range that starts at or after the end of
+  the file, and the app used to fail at once on it. The engine now
+  discards the partial file and restarts the download from the
+  beginning, at most twice, and only then fails with a clear message.
 
 ## What still needs testing on a real device or emulator
 
