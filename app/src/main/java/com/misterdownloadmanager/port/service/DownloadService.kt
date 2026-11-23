@@ -25,6 +25,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -46,8 +47,8 @@ class DownloadService : Service() {
     @Volatile
     private var runningId: Long? = null
 
-    @Volatile
-    private var lastForwardedMillis: Long = 0L
+    private val progressChannel = Channel<DownloadItem>(capacity = Channel.CONFLATED)
+    private val lastForwarded = mutableMapOf<Long, DownloadItem>()
 
     private val queueMutex = Mutex()
     private lateinit var setup: Deferred<Unit>
@@ -63,6 +64,11 @@ class DownloadService : Service() {
             engine = DownloadContainer.engine(app, repo.settings.value)
             scope.launch { collectEngineStates() }
             scope.launch { collectRepositoryItems() }
+            scope.launch {
+                for (item in progressChannel) {
+                    repository?.update(item)
+                }
+            }
         }
     }
 
@@ -86,17 +92,12 @@ class DownloadService : Service() {
     private suspend fun collectEngineStates() {
         val eng = engine ?: return
         eng.states.collect { states ->
-            val repo = repository ?: return@collect
-            val now = System.currentTimeMillis()
-            var forwarded = false
             states.values.forEach { item ->
-                val terminal = item.status != DownloadStatus.DOWNLOADING
-                if (terminal || now - lastForwardedMillis >= 250L) {
-                    repo.update(item)
-                    forwarded = true
+                if (lastForwarded[item.id] != item) {
+                    lastForwarded[item.id] = item
+                    progressChannel.trySend(item)
                 }
             }
-            if (forwarded) lastForwardedMillis = now
         }
     }
 
@@ -179,6 +180,7 @@ class DownloadService : Service() {
 
     override fun onDestroy() {
         job?.cancel()
+        progressChannel.close()
         scope.cancel()
         super.onDestroy()
     }

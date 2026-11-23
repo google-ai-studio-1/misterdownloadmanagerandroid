@@ -295,9 +295,13 @@ app/src/main/java/com/misterdownloadmanager/port/
   runs queued downloads one at a time and then stops itself when the
   queue is empty. The UI and the service share one repository and one
   engine through `DownloadContainer`, so progress, status and the
-  corrected file name reach the list live (progress is forwarded at
-  most every 250 ms). Pausing from the UI cancels the running engine
-  job. On boot the receiver starts the service, which resumes queued
+  corrected file name reach the list live. Progress updates are
+  offered to a conflated channel the moment they happen, and a single
+  consumer hands them to the list one by one; if the UI is slower
+  than the download, the channel keeps only the newest update instead
+  of queueing a backlog, so the list always shows the latest progress
+  with no fixed delay and no spam. Pausing from the UI cancels the
+  running engine job. On boot the receiver starts the service, which resumes queued
   downloads when `resumeOnStart` is on.
 - The upstream `unsafe_code = "deny"` workspace lint is honoured in
   spirit: this port contains no native code and no unsafe calls.
